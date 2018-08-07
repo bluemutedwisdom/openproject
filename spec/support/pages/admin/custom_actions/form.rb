@@ -42,7 +42,7 @@ module Pages
 
         def add_action(name, value)
           select name, from: 'Add action'
-
+          sleep 2
           set_action_value(name, value)
         end
 
@@ -61,9 +61,24 @@ module Pages
         end
 
         def set_condition(name, value)
+          page.within('#custom-actions-form--conditions') do
+            expect(page).to have_field(name)
+          end
+
           Array(value).each do |val|
-            fill_in name, with: val
+            within '#custom-actions-form--conditions' do
+              fill_in name, with: val
+            end
+
+            sleep 1
+
             find('.ui-menu-item', text: val).click
+
+            within '#custom-actions-form--conditions' do
+              expect(page).to have_selector('.form--selected-value', text: val)
+            end
+
+            sleep 1
           end
         end
 
@@ -83,12 +98,16 @@ module Pages
                 autocomplete = true
               end
 
+              expect(page).to have_field(name)
+              sleep 1
               fill_in name, with: val
             end
 
             if autocomplete
-              find('.ui-menu-item', text: val).click
+              find('.ui-menu-item', text: val, wait: 5).click
             end
+
+            sleep 2
           end
         end
       end

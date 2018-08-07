@@ -76,7 +76,7 @@ describe 'Custom actions', type: :feature, js: true do
                       position: IssuePriority.maximum(:position) + 1)
   end
   let(:default_status) do
-    FactoryBot.create(:default_status)
+    FactoryBot.create(:default_status, name: 'Default status')
   end
   let(:closed_status) do
     FactoryBot.create(:closed_status, name: 'Closed')
@@ -93,21 +93,26 @@ describe 'Custom actions', type: :feature, js: true do
   end
   let!(:workflows) do
     FactoryBot.create(:workflow,
-                      old_status: work_package.status,
+                      old_status: default_status,
                       new_status: closed_status,
                       role: role,
                       type: work_package.type)
 
     FactoryBot.create(:workflow,
-                      new_status: work_package.status,
+                      new_status: default_status,
                       old_status: closed_status,
                       role: role,
                       type: work_package.type)
     FactoryBot.create(:workflow,
-                      old_status: work_package.status,
+                      old_status: default_status,
                       new_status: rejected_status,
                       role: role,
                       type: work_package.type)
+    FactoryBot.create(:workflow,
+                      old_status: rejected_status,
+                      new_status: default_status,
+                      role: role,
+                      type: other_type)
   end
   let!(:list_custom_field) do
     cf = FactoryBot.create(:list_wp_custom_field, multi_value: true)
@@ -138,7 +143,7 @@ describe 'Custom actions', type: :feature, js: true do
     login_as(admin)
   end
 
-  scenario 'viewing workflow buttons', retry: 3 do
+  scenario 'viewing workflow buttons' do
     # create custom action 'Unassign'
     index_ca_page.visit!
 
@@ -240,13 +245,9 @@ describe 'Custom actions', type: :feature, js: true do
     end
 
     wp_page.click_custom_action('Unassign')
-
     wp_page.expect_attributes assignee: '-'
-    wp_page.expect_notification message: 'Successful update'
-    wp_page.dismiss_notification!
 
     wp_page.click_custom_action('Escalate')
-
     wp_page.expect_attributes priority: immediate_priority.name,
                               status: default_status.name,
                               assignee: '-',
@@ -254,15 +255,10 @@ describe 'Custom actions', type: :feature, js: true do
 
     expect(page)
       .to have_selector('.work-package-details-activities-activity-contents a.user-mention', text: other_member_user.name)
-    wp_page.expect_notification message: 'Successful update'
-    wp_page.dismiss_notification!
 
     wp_page.click_custom_action('Close')
-
     wp_page.expect_attributes status: closed_status.name,
                               priority: immediate_priority.name
-    wp_page.expect_notification message: 'Successful update'
-    wp_page.dismiss_notification!
 
     wp_page.expect_custom_action('Reset')
     wp_page.expect_no_custom_action('Close')
@@ -273,7 +269,6 @@ describe 'Custom actions', type: :feature, js: true do
                               status: default_status.name,
                               assignee: user.name
     wp_page.expect_no_attribute "customField#{int_custom_field.id}"
-    wp_page.expect_notification message: 'Successful update'
 
     # edit 'Reset' to now be named 'Reject' which sets the status to 'Rejected'
     login_as(admin)
@@ -285,8 +280,10 @@ describe 'Custom actions', type: :feature, js: true do
     edit_ca_page.set_name 'Reject'
     edit_ca_page.remove_action 'Priority'
     edit_ca_page.set_action 'Assignee', '-'
+
     edit_ca_page.set_action 'Status', rejected_status.name
     edit_ca_page.set_condition 'Status', default_status.name
+
     edit_ca_page.save
 
     index_ca_page.expect_current_path
@@ -311,12 +308,9 @@ describe 'Custom actions', type: :feature, js: true do
     wp_page.expect_custom_action_order('Move project', 'Close', 'Reject', 'Unassign', 'Escalate')
 
     wp_page.click_custom_action('Reject')
-
     wp_page.expect_attributes assignee: '-',
                               status: rejected_status.name,
                               priority: default_priority.name
-    wp_page.expect_notification message: 'Successful update'
-    wp_page.dismiss_notification!
 
     wp_page.expect_custom_action('Close')
     wp_page.expect_no_custom_action('Reject')
@@ -353,7 +347,7 @@ describe 'Custom actions', type: :feature, js: true do
     ## Bump the lockVersion and by that force a conflict.
     work_package.reload.touch
 
-    wp_page.click_custom_action('Escalate')
+    wp_page.click_custom_action('Escalate', expect_success: false)
 
     wp_page.expect_notification type: :error, message: I18n.t('api_v3.errors.code_409')
   end

@@ -45,6 +45,7 @@ module Pages
         end
 
         def save
+          sleep 1
           click_button 'Save'
         end
       end
